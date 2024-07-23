@@ -1,39 +1,24 @@
-# Compiler options
-CXX := g++
-CXXFLAGS := -std=c++17 -Wall -Wextra
-LDFLAGS :=
-GUI := -lsfml-graphics -lsfml-window -lsfml-system
+CXX = g++
+CXXFLAGS = -std=c++17 
+LDFLAGS = -lsfml-graphics -lsfml-window -lsfml-system
 
-# Directories
-SRCDIR := src
-INCDIR := include
-BUILDDIR := build
-BINDIR := bin
+SRCS = main.cpp Graph.cpp Tree.cpp
+OBJS = $(SRCS:.cpp=.o)
+DEPS = $(SRCS:.cpp=.d)
 
-# Targets
-EXECUTABLE := $(BINDIR)/main
+TARGET = graph_visualizer
 
-# Source files
-SRCS := $(wildcard $(SRCDIR)/*.cpp)
-OBJS := $(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.o,$(SRCS))
-DEPS := $(wildcard $(INCDIR)/*.hpp)
+all: $(TARGET)
 
-# Default target
-all: $(EXECUTABLE)
+$(TARGET): $(OBJS)
+	$(CXX) $(OBJS) -o $@ $(LDFLAGS)
 
-# Link object files into executable
-$(EXECUTABLE): $(OBJS)
-	@mkdir -p $(BINDIR)
-	$(CXX) $(LDFLAGS) $^ -o $@ $(GUI)
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) -MMD -MP -c $< -o $@
 
-# Compile source files into object files
-$(BUILDDIR)/%.o: $(SRCDIR)/%.cpp $(DEPS)
-	@mkdir -p $(BUILDDIR)
-	$(CXX) $(CXXFLAGS) -I$(INCDIR) -c $< -o $@ $(GUI)
-
-# Clean objects and executable
 clean:
-	rm -rf $(BUILDDIR) $(BINDIR)
+	rm -f $(OBJS) $(DEPS) $(TARGET)
 
-# Phony targets
+-include $(DEPS)
+
 .PHONY: all clean

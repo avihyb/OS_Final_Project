@@ -1,8 +1,9 @@
-#include "../include/Graph.hpp"
-#include "../include/KruskalMST.hpp"
-
+// main.cpp
 #include <iostream>
-#include <pthread.h>
+#include <SFML/Graphics.hpp>
+#include "Graph.hpp"
+#include "Tree.hpp"
+#include <iostream>
 #include <string>
 #include <vector>
 #include <stack>
@@ -14,43 +15,78 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <poll.h>
-#include <thread>
-#include <mutex>
-#include <map> 
 
 using namespace std;
 
-#define PORT "9034"   // Port we're listening on
+#define PORT "9034"
 
 Graph graph;
+std::vector<std::pair<int,int>> mstEdges;
 
-void HandleCommand(const string& command, int client_fd){
+
+void HandleCommand(const string& command, int client_fd) {
     try {
-        if(command.substr(0, 8) == "Newgraph"){
-            int vertices = stoi(command.substr(9, command.find(' ', 9)));
-            int edges = stoi(command.substr(command.find(' ', 9) + 1));
-            graph.createGraph(vertices, edges);
+        if(command.substr(0,4) == "init"){
+            send(client_fd, "Enter edges in format: <from> <to> <weight>, -1 to finish.\n", 60, 0);
+            std::cout << "Enter edges (from to weight), -1 to finish:\n";
+            while (true) {
+                char buf[256];
+                int nbytes = recv(client_fd, buf, sizeof buf, 0);
+                if(nbytes <= 0){
+                    cerr << "Error receiving data from client" << endl;
+                    break;
+                }
+                buf[nbytes] = '\0';
+                int from, to, weight;
+                sscanf(buf, "%d %d %d", &from, &to, &weight);
+                if (from == -1) {
+                    send(client_fd, "Successfully inputed all edges.\n", 33, 0);
+                    break;
+                }
+                graph.addEdge(from, to, weight);
+            }
+            cout << "Graph initialized." << endl;
+
+        } else if (command.substr(0,3) == "mst") {
+            cout << "Client #" << client_fd << " requested MST.\n";
+            send(client_fd, "Finding MST...\n", 15, 0);
+            mstEdges = graph.findMST();
+            if(!mstEdges.empty()){
+                send(client_fd, "MST found. Creating Tree object.\n", 34, 0);
+                cout << "MST found. Creating Tree object." << endl;
+                Tree mstTree(mstEdges);
+            } else {
+                send(client_fd, "No MST found in the graph.\n", 28, 0);
+                cout << "No MST found in the graph." << endl;
+            }
+        } else if (command.substr(0,4) == "show") {
+            cout << "Showing graph" << endl;
+            send(client_fd, "Showing graph", 15, 0);
+            sf::RenderWindow window(sf::VideoMode(800, 600), "Graph Visualization");
+
+            while (window.isOpen()) {
+                sf::Event event;
+                while (window.pollEvent(event)) {
+                    if (event.type == sf::Event::Closed)
+                        window.close();
+                }
+
+                window.clear(sf::Color::White);
+                graph.drawGraph(window, mstEdges);
+                window.display();
+            }
+        } else {
+            cout << "Unknown command" << endl;
+            send(client_fd, "unknown command", 15, 0);
         }
-        
-        else if(command == "Exit"){
-            cout << "Client" << client_fd << "exited" << endl;
-            send(client_fd, "Exit", 4, 0);
-            close(client_fd);
-        }
-        else {
-            cout << "Invalid command" << endl;
-        }
-    } catch (const exception& e) {
-        cout << "Invalid command" << endl;
-        send(client_fd, "Invalid command", 15, 0);
+    }
+    catch (const std::exception& e) {
+        cerr << "Error handling command: " << e.what() << endl;
+        send(client_fd, "error with command", 5, 0);
     }
 }
 
-void displayMenu(){
-    cout << "1. Newgraph <vertices> <edges>" << endl;
-    cout << "2. Exit" << endl;
 
-}
 
 // Get sockaddr, IPv4 or IPv6:
 void *get_in_addr(struct sockaddr *sa) {
@@ -121,8 +157,8 @@ void del_from_pfds(vector<pollfd>& pfds, int i) {
     pfds.erase(pfds.begin() + i);
 }
 
-int main() {
-    int listener;     // Listening socket descriptor
+int main(){
+     int listener;     // Listening socket descriptor
 
     int newfd;        // Newly accept()ed socket descriptor
     struct sockaddr_storage remoteaddr; // Client address
@@ -210,3 +246,34 @@ int main() {
 
     return 0;
 }
+/*
+int main() {
+    Graph graph;
+
+    graph.init();
+
+    auto mstEdges = graph.findMST();
+
+    if (!mstEdges.empty()) {
+        std::cout << "MST found. Creating Tree object.\n";
+        Tree mstTree(mstEdges);
+
+        sf::RenderWindow window(sf::VideoMode(800, 600), "Graph Visualization");
+
+        while (window.isOpen()) {
+            sf::Event event;
+            while (window.pollEvent(event)) {
+                if (event.type == sf::Event::Closed)
+                    window.close();
+            }
+
+            window.clear(sf::Color::White);
+            graph.drawGraph(window, mstEdges);
+            window.display();
+        }
+    } else {
+        std::cout << "No MST found in the graph.\n";
+    }
+
+    return 0;
+}*/

@@ -12,6 +12,7 @@ add_library(Tree src/Tree.cpp)
 add_library(MSTAlgorithm src/MSTAlgorithm.cpp)
 add_library(MSTAlgorithmFactory src/MSTAlgorithmFactory.cpp)
 add_library(KruskalMST src/KruskalMST.cpp)
+add_library(GraphVisualizer src/GraphVisualizer.cpp)
 
 # Test executable
 add_executable(tests tests/main.cpp tests/GraphTests.cpp tests/TreeTests.cpp tests/MSTAlgorithmTests.cpp)
