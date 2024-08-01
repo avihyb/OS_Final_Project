@@ -1,12 +1,11 @@
-// main.cpp
 #include <iostream>
 #include <SFML/Graphics.hpp>
 #include "Graph.hpp"
 #include "Tree.hpp"
-#include <iostream>
-#include <string>
+#include "ActiveObject.hpp"
+#include "Pipeline.hpp"
+#include "MSTAlgorithmFactory.hpp"
 #include <vector>
-#include <stack>
 #include <cstring>
 #include <unistd.h>
 #include <sys/types.h>
@@ -15,78 +14,161 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <poll.h>
+#include <thread>
+#include "Pipeline.hpp"
 
 using namespace std;
 
 #define PORT "9034"
 
 Graph graph;
-std::vector<std::pair<int,int>> mstEdges;
+Tree mstTree;
+ActiveObject activeObject;
 
+void showLoadingBar(int duration) {
+    const int barWidth = 50;
+    for (int i = 0; i <= barWidth; ++i) {
+        std::cout << "[";
+        int pos = barWidth * i / barWidth;
+        for (int j = 0; j < barWidth; ++j) {
+            if (j < pos) std::cout << "=";
+            else if (j == pos) std::cout << ">";
+            else std::cout << " ";
+        }
+        std::cout << "] " << int((i / (float)barWidth) * 100.0) << " %\r";
+        std::cout.flush();
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(duration / barWidth));
+    }
+    std::cout << std::endl;
+}
+
+void handleInit(int client_fd) {
+    string response = "Enter edges in format: <from> <to> <weight>, -1 to finish.\n";
+    send(client_fd, response.c_str(), response.size(), 0);
+    cout << "Enter edges (from to weight), -1 to finish:\n";
+    
+    while (true) {
+        char buf[256];
+        int nbytes = recv(client_fd, buf, sizeof buf, 0);
+        if (nbytes <= 0) {
+            cerr << "Error receiving data from client" << endl;
+            break;
+        }
+        buf[nbytes] = '\0';
+        
+        int from, to, weight;
+        sscanf(buf, "%d %d %d", &from, &to, &weight);
+        if (from == -1) {
+            response = "Successfully inputed all edges.\n";
+            send(client_fd, response.c_str(), response.size(), 0);
+            break;
+        }
+        graph.addEdge(from, to, weight);
+    }
+    cout << "Graph initialized." << endl;
+}
+
+void handleKruskal(int client_fd) {
+    cout << "Client #" << client_fd << " requested Kruskal algorithm.\n";
+    string response = "Searching MST with Kruskal algorithm...\n";
+    send(client_fd, response.c_str(), response.size(), 0);
+
+    // Create pipeline and add steps
+    Pipeline pipeline;
+    pipeline.addStep([client_fd] {
+        mstTree = MSTAlgorithmFactory::createAlgorithm("Kruskal")->findMST(graph);
+    });
+    pipeline.addStep([client_fd] {
+        string response = "MST found.\n";
+        send(client_fd, response.c_str(), response.size(), 0);
+    });
+
+    // Enqueue the pipeline task
+    activeObject.enqueueTask([pipeline] {
+        pipeline.execute();
+    });
+}
+
+void handlePrim(int client_fd) {
+    cout << "Client #" << client_fd << " requested Prim algorithm.\n";
+    string response = "Searching MST with Prim algorithm...\n";
+    send(client_fd, response.c_str(), response.size(), 0);
+
+    // Create pipeline and add steps
+    Pipeline pipeline;
+    pipeline.addStep([client_fd] {
+        mstTree = MSTAlgorithmFactory::createAlgorithm("Prim")->findMST(graph);
+    });
+    pipeline.addStep([client_fd] {
+        string response = "MST found.\n";
+        send(client_fd, response.c_str(), response.size(), 0);
+    });
+
+    // Enqueue the pipeline task
+    activeObject.enqueueTask([pipeline] {
+        pipeline.execute();
+    });
+}
+
+void handleShow(int client_fd) {
+    cout << "Showing graph" << endl;
+    string response = "Showing graph\n";
+    send(client_fd, response.c_str(), response.size(), 0);
+
+    // Create pipeline and add steps
+    Pipeline pipeline;
+    pipeline.addStep([] {
+        sf::RenderWindow window(sf::VideoMode(800, 600), "Graph Visualization");
+
+        while (window.isOpen()) {
+            sf::Event event;
+            while (window.pollEvent(event)) {
+                if (event.type == sf::Event::Closed)
+                    window.close();
+            }
+
+            window.clear(sf::Color::White);
+            graph.drawGraph(window, mstTree.getEdges());
+            window.display();
+        }
+    });
+
+    // Enqueue the pipeline task
+    activeObject.enqueueTask([pipeline] {
+        pipeline.execute();
+    });
+}
 
 void HandleCommand(const string& command, int client_fd) {
     try {
-        if(command.substr(0,4) == "init"){
-            send(client_fd, "Enter edges in format: <from> <to> <weight>, -1 to finish.\n", 60, 0);
-            std::cout << "Enter edges (from to weight), -1 to finish:\n";
-            while (true) {
-                char buf[256];
-                int nbytes = recv(client_fd, buf, sizeof buf, 0);
-                if(nbytes <= 0){
-                    cerr << "Error receiving data from client" << endl;
-                    break;
-                }
-                buf[nbytes] = '\0';
-                int from, to, weight;
-                sscanf(buf, "%d %d %d", &from, &to, &weight);
-                if (from == -1) {
-                    send(client_fd, "Successfully inputed all edges.\n", 33, 0);
-                    break;
-                }
-                graph.addEdge(from, to, weight);
-            }
-            cout << "Graph initialized." << endl;
-
-        } else if (command.substr(0,3) == "mst") {
-            cout << "Client #" << client_fd << " requested MST.\n";
-            send(client_fd, "Finding MST...\n", 15, 0);
-            mstEdges = graph.findMST();
-            if(!mstEdges.empty()){
-                send(client_fd, "MST found. Creating Tree object.\n", 34, 0);
-                cout << "MST found. Creating Tree object." << endl;
-                Tree mstTree(mstEdges);
-            } else {
-                send(client_fd, "No MST found in the graph.\n", 28, 0);
-                cout << "No MST found in the graph." << endl;
-            }
-        } else if (command.substr(0,4) == "show") {
-            cout << "Showing graph" << endl;
-            send(client_fd, "Showing graph", 15, 0);
-            sf::RenderWindow window(sf::VideoMode(800, 600), "Graph Visualization");
-
-            while (window.isOpen()) {
-                sf::Event event;
-                while (window.pollEvent(event)) {
-                    if (event.type == sf::Event::Closed)
-                        window.close();
-                }
-
-                window.clear(sf::Color::White);
-                graph.drawGraph(window, mstEdges);
-                window.display();
-            }
+        if (command.substr(0, 4) == "init") {
+            activeObject.enqueueTask([client_fd] {
+                handleInit(client_fd);
+            });
+        } else if (command.substr(0, 7) == "kruskal") {
+            activeObject.enqueueTask([client_fd] {
+                handleKruskal(client_fd);
+            });
+        } else if (command.substr(0, 4) == "prim") {
+            activeObject.enqueueTask([client_fd] {
+                handlePrim(client_fd);
+            });
+        } else if (command.substr(0, 4) == "show") {
+            activeObject.enqueueTask([client_fd] {
+                handleShow(client_fd);
+            });
         } else {
             cout << "Unknown command" << endl;
-            send(client_fd, "unknown command", 15, 0);
+            string response = "unknown command\n";
+            send(client_fd, response.c_str(), response.size(), 0);
         }
-    }
-    catch (const std::exception& e) {
+    } catch (const std::exception& e) {
         cerr << "Error handling command: " << e.what() << endl;
-        send(client_fd, "error with command", 5, 0);
+        string response = "error with command";
+        send(client_fd, response.c_str(), response.size(), 0);
     }
 }
-
-
 
 // Get sockaddr, IPv4 or IPv6:
 void *get_in_addr(struct sockaddr *sa) {
@@ -157,15 +239,12 @@ void del_from_pfds(vector<pollfd>& pfds, int i) {
     pfds.erase(pfds.begin() + i);
 }
 
-int main(){
-     int listener;     // Listening socket descriptor
-
+int main() {
+    int listener;     // Listening socket descriptor
     int newfd;        // Newly accept()ed socket descriptor
     struct sockaddr_storage remoteaddr; // Client address
     socklen_t addrlen;
-
     char buf[256];    // Buffer for client data
-
     char remoteIP[INET6_ADDRSTRLEN];
 
     // Start off with room for 5 connections
@@ -175,12 +254,10 @@ int main(){
 
     // Set up and get a listening socket
     listener = get_listener_socket();
-
     if (listener == -1) {
         cerr << "error getting listening socket" << endl;
         exit(1);
     }
-
     // Add the listener to set
     pfds.push_back({listener, POLLIN, 0});
 
@@ -246,34 +323,3 @@ int main(){
 
     return 0;
 }
-/*
-int main() {
-    Graph graph;
-
-    graph.init();
-
-    auto mstEdges = graph.findMST();
-
-    if (!mstEdges.empty()) {
-        std::cout << "MST found. Creating Tree object.\n";
-        Tree mstTree(mstEdges);
-
-        sf::RenderWindow window(sf::VideoMode(800, 600), "Graph Visualization");
-
-        while (window.isOpen()) {
-            sf::Event event;
-            while (window.pollEvent(event)) {
-                if (event.type == sf::Event::Closed)
-                    window.close();
-            }
-
-            window.clear(sf::Color::White);
-            graph.drawGraph(window, mstEdges);
-            window.display();
-        }
-    } else {
-        std::cout << "No MST found in the graph.\n";
-    }
-
-    return 0;
-}*/

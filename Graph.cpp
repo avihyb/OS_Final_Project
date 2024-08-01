@@ -4,6 +4,7 @@
 #include <cmath>
 #include <iostream>
 
+
 using namespace std;
 
 void Graph::addEdge(int from, int to, int weight) {
@@ -61,15 +62,25 @@ void Graph::drawEdge(sf::RenderWindow& window, int from, int to, int weight, boo
     float fromAngle = 2 * M_PI * from / vertexCount;
     float toAngle = 2 * M_PI * to / vertexCount;
 
-    sf::Vertex line[] = {
-        sf::Vertex(sf::Vector2f(center.x + radius * std::cos(fromAngle), center.y + radius * std::sin(fromAngle))),
-        sf::Vertex(sf::Vector2f(center.x + radius * std::cos(toAngle), center.y + radius * std::sin(toAngle)))
-    };
+    sf::Vector2f fromPos(center.x + radius * std::cos(fromAngle), center.y + radius * std::sin(fromAngle));
+    sf::Vector2f toPos(center.x + radius * std::cos(toAngle), center.y + radius * std::sin(toAngle));
 
-    line[0].color = isMST ? sf::Color::Red : sf::Color::Black;
-    line[1].color = isMST ? sf::Color::Red : sf::Color::Black;
+    sf::Color lineColor = isMST ? sf::Color::Red : sf::Color::Black;
+    int thickness = isMST ? 3 : 1;  // Adjust the thickness as needed
 
-    window.draw(line, 2, sf::Lines);
+    for (int i = -thickness / 2; i <= thickness / 2; ++i) {
+        for (int j = -thickness / 2; j <= thickness / 2; ++j) {
+            sf::Vertex line[] = {
+                sf::Vertex(fromPos + sf::Vector2f(i, j)),
+                sf::Vertex(toPos + sf::Vector2f(i, j))
+            };
+
+            line[0].color = lineColor;
+            line[1].color = lineColor;
+
+            window.draw(line, 2, sf::Lines);
+        }
+    }
 
     // Draw weight
     sf::Text text;
@@ -79,37 +90,23 @@ void Graph::drawEdge(sf::RenderWindow& window, int from, int to, int weight, boo
     text.setString(std::to_string(weight));
     text.setCharacterSize(14);
     text.setFillColor(sf::Color::Blue);
-    text.setPosition((line[0].position + line[1].position) / 2.0f);
+    text.setPosition((fromPos + toPos) / 2.0f);
 
     window.draw(text);
 }
 
-std::vector<std::pair<int, int>> Graph::findMST() const {
-    // Implement Kruskal's algorithm for MST
+
+int Graph::getVertexCount() const {
+    return adjacencyList.size();
+}
+
+std::vector<std::pair<int, std::pair<int, int>>> Graph::getAllEdges() const {
     std::vector<std::pair<int, std::pair<int, int>>> edges;
     for (const auto& [from, adjList] : adjacencyList) {
         for (const auto& edge : adjList) {
             edges.push_back({edge.weight, {from, edge.to}});
         }
     }
-    std::sort(edges.begin(), edges.end());
-
-    std::vector<int> parent(adjacencyList.size());
-    for (int i = 0; i < parent.size(); ++i) parent[i] = i;
-
-    std::function<int(int)> find = [&](int x) {
-        if (parent[x] != x) parent[x] = find(parent[x]);
-        return parent[x];
-    };
-
-    std::vector<std::pair<int, int>> mst;
-    for (const auto& edge : edges) {
-        int u = edge.second.first, v = edge.second.second;
-        if (find(u) != find(v)) {
-            mst.push_back({u, v});
-            parent[find(u)] = find(v);
-        }
-    }
-
-    return mst;
+    return edges;
 }
+

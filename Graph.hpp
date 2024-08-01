@@ -1,4 +1,3 @@
-// Graph.hpp
 #pragma once
 
 #include <vector>
@@ -6,6 +5,7 @@
 #include <SFML/Graphics.hpp>
 
 class Graph {
+
 protected:
     struct Edge {
         int to;
@@ -18,8 +18,18 @@ public:
     
     virtual void addEdge(int from, int to, int weight);
     virtual void drawGraph(sf::RenderWindow& window, const std::vector<std::pair<int, int>>& mstEdges = {}) const;
-    std::vector<std::pair<int, int>> findMST() const;
+    int getVertexCount() const;
+    std::vector<std::pair<int, std::pair<int, int>>> getAllEdges() const;
 
+    // Returns a vector of edges adjacent to a given vertex
+    std::vector<Edge> getAdjacentEdges(int vertex) const {
+        auto it = adjacencyList.find(vertex);
+        if (it != adjacencyList.end()) {
+            return it->second;
+        }
+        return {}; // Return an empty vector if the vertex is not found
+    }
+    
 protected:
     virtual void drawVertex(sf::RenderWindow& window, int vertex, float x, float y) const;
     virtual void drawEdge(sf::RenderWindow& window, int from, int to, int weight, bool isMST) const;
