@@ -9,7 +9,7 @@ TARGET = program
 
 all: $(TARGET)
 	./$(TARGET)
-
+	
 $(TARGET): $(OBJS)
 	$(CXX) $(OBJS) -o $@ $(LDFLAGS)
 

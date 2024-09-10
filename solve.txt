@@ -1,0 +1,3 @@
+In case of socket malfunction: 
+sudo ss -tulnp -p | grep 9034
+sudo kill -9 <PID>

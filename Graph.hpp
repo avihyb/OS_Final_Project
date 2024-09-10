@@ -29,6 +29,8 @@ public:
         }
         return {}; // Return an empty vector if the vertex is not found
     }
+
+    bool isEmpty() { return adjacencyList.empty(); }
     
 protected:
     virtual void drawVertex(sf::RenderWindow& window, int vertex, float x, float y) const;

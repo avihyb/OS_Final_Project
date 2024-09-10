@@ -170,6 +170,29 @@ void HandleCommand(const string& command, int client_fd) {
     }
 }
 
+void menu(int clientfd) {
+    
+    // Construct the menu string
+    std::string menu = "AVAILABLE CMDS:\n";
+    menu += "1. init - to initialize a new graph";
+       // Add graph status message
+    if (!graph.isEmpty()) {
+        menu += "\n(Graph is already initialized!)\n";
+    } else {
+        menu += "\n";
+        menu += "2. prim - to run Prim's algorithm\n";
+        menu += "3. kruskal - to run Kruskal's algorithm\n";
+        menu += "4. show - open GUI to show the graph\n";
+    }
+    
+    
+    
+ 
+    
+    // Send the menu to the client
+    send(clientfd, menu.c_str(), strlen(menu.c_str()), 0);
+}
+
 // Get sockaddr, IPv4 or IPv6:
 void *get_in_addr(struct sockaddr *sa) {
     if (sa->sa_family == AF_INET) {
@@ -240,6 +263,7 @@ void del_from_pfds(vector<pollfd>& pfds, int i) {
 }
 
 int main() {
+    std::cout << "Starting server, Please wait... " << std::endl;
     int listener;     // Listening socket descriptor
     int newfd;        // Newly accept()ed socket descriptor
     struct sockaddr_storage remoteaddr; // Client address
@@ -258,6 +282,9 @@ int main() {
         cerr << "error getting listening socket" << endl;
         exit(1);
     }
+
+     std::this_thread::sleep_for(std::chrono::seconds(2));
+    std::cout << "Server started succesfully! Awaiting connections... " << std::endl;
     // Add the listener to set
     pfds.push_back({listener, POLLIN, 0});
 
@@ -285,12 +312,15 @@ int main() {
                         perror("accept");
                     } else {
                         add_to_pfds(pfds, newfd);
-
+                        
                         cout << "pollserver: new connection from "
                              << inet_ntop(remoteaddr.ss_family,
                                           get_in_addr((struct sockaddr*)&remoteaddr),
                                           remoteIP, INET6_ADDRSTRLEN)
                              << " on socket " << newfd << endl;
+                             
+                             send(newfd, "Welcome\n", 8, 0);
+                             menu(newfd);
                     }
                 } else {
                     // If not the listener, we're just a regular client
