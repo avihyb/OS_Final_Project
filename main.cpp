@@ -46,7 +46,7 @@ void showLoadingBar(int duration) {
 void handleInit(int client_fd) {
     string response = "Enter edges in format: <from> <to> <weight>, -1 to finish.\n";
     send(client_fd, response.c_str(), response.size(), 0);
-    cout << "Enter edges (from to weight), -1 to finish:\n";
+    cout << "Client " << client_fd << " used init command." << endl;
     
     while (true) {
         char buf[256];
@@ -282,8 +282,9 @@ int main() {
         cerr << "error getting listening socket" << endl;
         exit(1);
     }
+    showLoadingBar(1000);
 
-     std::this_thread::sleep_for(std::chrono::seconds(2));
+     std::this_thread::sleep_for(std::chrono::seconds(1));
     std::cout << "Server started succesfully! Awaiting connections... " << std::endl;
     // Add the listener to set
     pfds.push_back({listener, POLLIN, 0});
@@ -319,7 +320,7 @@ int main() {
                                           remoteIP, INET6_ADDRSTRLEN)
                              << " on socket " << newfd << endl;
                              
-                             send(newfd, "Welcome\n", 8, 0);
+                             send(newfd, "Welcome!\n", 9, 0);
                              menu(newfd);
                     }
                 } else {
