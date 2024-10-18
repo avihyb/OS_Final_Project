@@ -21,10 +21,11 @@ using namespace std;
 
 #define PORT "9034"
 
-Graph graph;
-Tree mstTree;
-ActiveObject activeObject;
+Graph graph; // Global graph object
+Tree mstTree; // Global MST tree object
+ActiveObject activeObject; 
 
+// Prints a loading bar to the console
 void showLoadingBar(int duration) {
     const int barWidth = 50;
     for (int i = 0; i <= barWidth; ++i) {
@@ -43,6 +44,7 @@ void showLoadingBar(int duration) {
     std::cout << std::endl;
 }
 
+// Handles the init command
 void handleInit(int client_fd) {
     string response = "Enter edges in format: <from> <to> <weight>, -1 to finish.\n";
     send(client_fd, response.c_str(), response.size(), 0);
@@ -69,11 +71,12 @@ void handleInit(int client_fd) {
     cout << "Graph initialized." << endl;
 }
 
+// Handles the Kruskal command
 void handleKruskal(int client_fd) {
     cout << "Client #" << client_fd << " requested Kruskal algorithm.\n";
     string response = "Searching MST with Kruskal algorithm...\n";
     send(client_fd, response.c_str(), response.size(), 0);
-
+    std::this_thread::sleep_for(std::chrono::seconds(1));
     // Create pipeline and add steps
     Pipeline pipeline;
     pipeline.addStep([client_fd] {
@@ -90,11 +93,12 @@ void handleKruskal(int client_fd) {
     });
 }
 
+// Handles the Prim command
 void handlePrim(int client_fd) {
     cout << "Client #" << client_fd << " requested Prim algorithm.\n";
     string response = "Searching MST with Prim algorithm...\n";
     send(client_fd, response.c_str(), response.size(), 0);
-
+    std::this_thread::sleep_for(std::chrono::seconds(1));
     // Create pipeline and add steps
     Pipeline pipeline;
     pipeline.addStep([client_fd] {
@@ -111,6 +115,7 @@ void handlePrim(int client_fd) {
     });
 }
 
+// Handles the show command (GUI)
 void handleShow(int client_fd) {
     cout << "Showing graph" << endl;
     string response = "Showing graph\n";
@@ -140,6 +145,25 @@ void handleShow(int client_fd) {
     });
 }
 
+// Handles the menu command (prints the menu to the client)
+void menu(int clientfd) {
+    
+    // Construct the menu string
+    std::string menu = "AVAILABLE CMDS:\n";
+    menu += "1. init - to initialize a new graph";
+       // Add graph status message
+    if (!graph.isEmpty()) {
+        menu += "\n";
+        menu += "2. prim - to run Prim's algorithm\n";
+        menu += "3. kruskal - to run Kruskal's algorithm\n";
+        menu += "4. show - open GUI to show the graph\n";
+    }
+
+        // Send the menu to the client
+    send(clientfd, menu.c_str(), strlen(menu.c_str()), 0);
+}
+
+// Handles the command sent by the client
 void HandleCommand(const string& command, int client_fd) {
     try {
         if (command.substr(0, 4) == "init") {
@@ -158,39 +182,24 @@ void HandleCommand(const string& command, int client_fd) {
             activeObject.enqueueTask([client_fd] {
                 handleShow(client_fd);
             });
+
+            } else if (command.substr(0, 4) == "menu") {
+            activeObject.enqueueTask([client_fd] {
+                menu(client_fd);
+            });
+            
         } else {
             cout << "Unknown command" << endl;
             string response = "unknown command\n";
             send(client_fd, response.c_str(), response.size(), 0);
         }
+
+        
     } catch (const std::exception& e) {
         cerr << "Error handling command: " << e.what() << endl;
         string response = "error with command";
         send(client_fd, response.c_str(), response.size(), 0);
     }
-}
-
-void menu(int clientfd) {
-    
-    // Construct the menu string
-    std::string menu = "AVAILABLE CMDS:\n";
-    menu += "1. init - to initialize a new graph";
-       // Add graph status message
-    if (!graph.isEmpty()) {
-        menu += "\n(Graph is already initialized!)\n";
-    } else {
-        menu += "\n";
-        menu += "2. prim - to run Prim's algorithm\n";
-        menu += "3. kruskal - to run Kruskal's algorithm\n";
-        menu += "4. show - open GUI to show the graph\n";
-    }
-    
-    
-    
- 
-    
-    // Send the menu to the client
-    send(clientfd, menu.c_str(), strlen(menu.c_str()), 0);
 }
 
 // Get sockaddr, IPv4 or IPv6:
@@ -256,7 +265,6 @@ int get_listener_socket() {
 void add_to_pfds(vector<pollfd>& pfds, int newfd) {
     pfds.push_back({newfd, POLLIN, 0});
 }
-
 // Remove an index from the set
 void del_from_pfds(vector<pollfd>& pfds, int i) {
     pfds.erase(pfds.begin() + i);
@@ -284,7 +292,7 @@ int main() {
     }
     showLoadingBar(1000);
 
-     std::this_thread::sleep_for(std::chrono::seconds(1));
+    std::this_thread::sleep_for(std::chrono::seconds(1));
     std::cout << "Server started succesfully! Awaiting connections... " << std::endl;
     // Add the listener to set
     pfds.push_back({listener, POLLIN, 0});
